@@ -103,86 +103,73 @@ def clean_currency_value(value: Any) -> Optional[float]:
 def merge_multiline_descriptions(df: pd.DataFrame) -> pd.DataFrame:
     """
     Handle KETERANGAN and DETAIL TRANSAKSI fields that may span multiple lines.
+    This is a safety net function - primary merging should happen in pdf_parser.py.
     Rows without a date in TANGGAL are assumed to be continuations of the previous row.
-    Updated for BCA format with DD/MM date pattern.
     
     Args:
-        df: DataFrame with transaction data
+        df: DataFrame with transaction data (should already be merged by pdf_parser)
         
     Returns:
-        DataFrame with merged multi-line descriptions
+        DataFrame with merged multi-line descriptions (or unchanged if already merged)
     """
     if df.empty:
         return df
     
     df = df.copy()
     
-    # Identify rows that are likely continuations (no date in first column)
+    # Quick check: if all rows have dates, merging is already done by pdf_parser
+    if 'TANGGAL' in df.columns:
+        tanggal_col = df['TANGGAL']
+        all_have_dates = tanggal_col.apply(
+            lambda x: bool(re.search(r'\d{1,2}/\d{1,2}', str(x).strip())) if pd.notna(x) else False
+        ).all()
+        
+        # If all rows have dates, no merging needed (already done in pdf_parser)
+        if all_have_dates:
+            return df
+    
+    # Fallback: perform merging if there are rows without dates
+    # This should rarely execute if pdf_parser merging works correctly
     merged_rows = []
     current_row = None
     
     for idx, row in df.iterrows():
         tanggal = str(row.iloc[0]).strip() if pd.notna(row.iloc[0]) else ""
-        
-        # Check if this row has a date (DD/MM format for BCA statements)
-        # Pattern: 01/08, 1/8, 31/12, etc.
         has_date = bool(re.search(r'\d{1,2}/\d{1,2}', tanggal)) if tanggal else False
         
         if has_date:
-            # This is a new transaction row
             if current_row is not None:
                 merged_rows.append(current_row)
             current_row = row.copy()
         else:
-            # This is a continuation row - merge KETERANGAN and DETAIL TRANSAKSI with previous row
+            # Continuation row - merge with previous
             if current_row is not None:
-                # Merge KETERANGAN column (index 1)
-                keterangan_col_idx = 1
-                if len(current_row) > keterangan_col_idx and len(row) > keterangan_col_idx:
-                    prev_keterangan = str(current_row.iloc[keterangan_col_idx]) if pd.notna(current_row.iloc[keterangan_col_idx]) else ""
-                    curr_keterangan = str(row.iloc[keterangan_col_idx]) if pd.notna(row.iloc[keterangan_col_idx]) else ""
-                    
-                    if curr_keterangan.strip():
-                        if prev_keterangan:
-                            merged_keterangan = f"{prev_keterangan} {curr_keterangan}".strip()
-                        else:
-                            merged_keterangan = curr_keterangan.strip()
-                        current_row.iloc[keterangan_col_idx] = merged_keterangan
+                # Merge KETERANGAN (index 1)
+                if len(current_row) > 1 and len(row) > 1:
+                    prev_keterangan = str(current_row.iloc[1]).strip() if pd.notna(current_row.iloc[1]) else ""
+                    curr_keterangan = str(row.iloc[1]).strip() if pd.notna(row.iloc[1]) else ""
+                    if curr_keterangan:
+                        current_row.iloc[1] = f"{prev_keterangan} {curr_keterangan}".strip() if prev_keterangan else curr_keterangan
                 
-                # Merge DETAIL TRANSAKSI column (index 2) - continuation details
-                detail_col_idx = 2
-                if len(current_row) > detail_col_idx and len(row) > detail_col_idx:
-                    prev_detail = str(current_row.iloc[detail_col_idx]) if pd.notna(current_row.iloc[detail_col_idx]) else ""
-                    curr_detail = str(row.iloc[detail_col_idx]) if pd.notna(row.iloc[detail_col_idx]) else ""
-                    
-                    if curr_detail.strip():
-                        if prev_detail:
-                            merged_detail = f"{prev_detail} {curr_detail}".strip()
-                        else:
-                            merged_detail = curr_detail.strip()
-                        current_row.iloc[detail_col_idx] = merged_detail
+                # Merge DETAIL TRANSAKSI (index 2)
+                if len(current_row) > 2 and len(row) > 2:
+                    prev_detail = str(current_row.iloc[2]).strip() if pd.notna(current_row.iloc[2]) else ""
+                    curr_detail = str(row.iloc[2]).strip() if pd.notna(row.iloc[2]) else ""
+                    if curr_detail:
+                        current_row.iloc[2] = f"{prev_detail} {curr_detail}".strip() if prev_detail else curr_detail
                 
-                # If MUTASI or SALDO appear in continuation and are missing from main row, use them
-                mutasi_col_idx = 3
-                saldo_col_idx = 4
-                if len(current_row) > mutasi_col_idx and len(row) > mutasi_col_idx:
-                    if (not current_row.iloc[mutasi_col_idx] or str(current_row.iloc[mutasi_col_idx]).strip() == "") and \
-                       row.iloc[mutasi_col_idx] and str(row.iloc[mutasi_col_idx]).strip():
-                        current_row.iloc[mutasi_col_idx] = row.iloc[mutasi_col_idx]
-                
-                if len(current_row) > saldo_col_idx and len(row) > saldo_col_idx:
-                    if (not current_row.iloc[saldo_col_idx] or str(current_row.iloc[saldo_col_idx]).strip() == "") and \
-                       row.iloc[saldo_col_idx] and str(row.iloc[saldo_col_idx]).strip():
-                        current_row.iloc[saldo_col_idx] = row.iloc[saldo_col_idx]
+                # Handle MUTASI and SALDO if missing
+                if len(current_row) > 3 and len(row) > 3:
+                    if (not current_row.iloc[3] or not str(current_row.iloc[3]).strip()) and row.iloc[3] and str(row.iloc[3]).strip():
+                        current_row.iloc[3] = row.iloc[3]
+                if len(current_row) > 4 and len(row) > 4:
+                    if (not current_row.iloc[4] or not str(current_row.iloc[4]).strip()) and row.iloc[4] and str(row.iloc[4]).strip():
+                        current_row.iloc[4] = row.iloc[4]
     
-    # Add the last row
     if current_row is not None:
         merged_rows.append(current_row)
     
-    if merged_rows:
-        return pd.DataFrame(merged_rows).reset_index(drop=True)
-    else:
-        return df
+    return pd.DataFrame(merged_rows).reset_index(drop=True) if merged_rows else df
 
 
 def clean_transaction_data(df: pd.DataFrame, expected_columns: list = None) -> pd.DataFrame:

@@ -76,7 +76,9 @@ def group_words_into_rows(words: List[Dict], y_tolerance: float = 3.0) -> List[L
         lines[y_key].append(word)
     
     # Sort by Y coordinate (top to bottom)
-    sorted_y_keys = sorted(lines.keys(), reverse=True)  # Reverse because Y=0 is at top
+    # In pdfplumber: Y=0 is at top, Y increases going down
+    # So we sort in ascending order (smallest Y first = top rows first)
+    sorted_y_keys = sorted(lines.keys(), reverse=False)
     
     # Convert to list of rows
     rows = []
@@ -188,24 +190,32 @@ def merge_transaction_lines(rows: List[List[str]]) -> List[List[str]]:
             # This is a continuation row - merge into current transaction
             if current_transaction is not None:
                 # Merge DETAIL TRANSAKSI column (index 2) - continuation details
-                if row[2] and str(row[2]).strip():
-                    if current_transaction[2]:
-                        current_transaction[2] += ' ' + str(row[2]).strip()
+                # Handle None, empty string, and whitespace-only values
+                detail_value = str(row[2]).strip() if row[2] is not None else ""
+                if detail_value:
+                    current_detail = str(current_transaction[2]).strip() if current_transaction[2] is not None else ""
+                    if current_detail:
+                        current_transaction[2] = current_detail + ' ' + detail_value
                     else:
-                        current_transaction[2] = str(row[2]).strip()
+                        current_transaction[2] = detail_value
                 
                 # Also merge KETERANGAN if it has content (index 1)
-                if row[1] and str(row[1]).strip():
-                    if current_transaction[1]:
-                        current_transaction[1] += ' ' + str(row[1]).strip()
+                keterangan_value = str(row[1]).strip() if row[1] is not None else ""
+                if keterangan_value:
+                    current_keterangan = str(current_transaction[1]).strip() if current_transaction[1] is not None else ""
+                    if current_keterangan:
+                        current_transaction[1] = current_keterangan + ' ' + keterangan_value
                     else:
-                        current_transaction[1] = str(row[1]).strip()
+                        current_transaction[1] = keterangan_value
                 
                 # If MUTASI or SALDO appear in continuation, they might be missing from main row
-                if row[3] and str(row[3]).strip() and not current_transaction[3]:
-                    current_transaction[3] = str(row[3]).strip()
-                if row[4] and str(row[4]).strip() and not current_transaction[4]:
-                    current_transaction[4] = str(row[4]).strip()
+                mutasi_value = str(row[3]).strip() if row[3] is not None else ""
+                if mutasi_value and (not current_transaction[3] or not str(current_transaction[3]).strip()):
+                    current_transaction[3] = mutasi_value
+                
+                saldo_value = str(row[4]).strip() if row[4] is not None else ""
+                if saldo_value and (not current_transaction[4] or not str(current_transaction[4]).strip()):
+                    current_transaction[4] = saldo_value
     
     # Add the last transaction
     if current_transaction is not None:
@@ -234,27 +244,32 @@ def extract_table_from_page(page: Any) -> List[List[Any]]:
     if not words:
         return []
     
-    # Filter words that are likely in the transaction table area
-    # Transaction table typically starts around y=350-400 (depending on header)
-    # We'll use all words but filter out header area later
-    page_height = page.height
-    
-    # Find the approximate start of transaction table by looking for "TANGGAL" header
-    # Extract text to find where the table starts
-    text = page.extract_text()
-    lines = text.split('\n')
-    
-    # Find the line with "TANGGAL" header
+    # Find the actual Y position of the "TANGGAL" header row by searching for words
+    # containing "TANGGAL" in the extracted words and using their actual coordinates
     table_start_y = None
-    for i, line in enumerate(lines):
-        if 'TANGGAL' in line.upper() and 'KETERANGAN' in line.upper():
-            # Found header, transaction rows should be below this
-            # Estimate Y position: header is usually around y=300-400
-            # We'll filter words below y=350 to be safe
-            table_start_y = 350
+    
+    # Search for words containing "TANGGAL" to find the header row's Y position
+    for word in words:
+        word_text = word.get('text', '').strip().upper()
+        if 'TANGGAL' in word_text:
+            # Found the header word, use its Y coordinate
+            # Add a small buffer (10 pixels) below the header to capture all transactions
+            table_start_y = word['top'] + 10
             break
     
-    # If we couldn't find header, use a default threshold
+    # If we couldn't find header in words, try fallback method using text extraction
+    if table_start_y is None:
+        text = page.extract_text()
+        lines = text.split('\n')
+        for i, line in enumerate(lines):
+            if 'TANGGAL' in line.upper() and 'KETERANGAN' in line.upper():
+                # Found header in text, but we need to find its Y position
+                # Search for any word near the expected header position
+                # Use a conservative default that should work for most PDFs
+                table_start_y = 350
+                break
+    
+    # If we still couldn't find header, use a default threshold
     if table_start_y is None:
         table_start_y = 300
     
@@ -265,7 +280,8 @@ def extract_table_from_page(page: Any) -> List[List[Any]]:
         return []
     
     # Group words into rows based on Y coordinate
-    word_rows = group_words_into_rows(transaction_words, y_tolerance=3.0)
+    # Increased tolerance to 5.0 to handle slight variations in text positioning
+    word_rows = group_words_into_rows(transaction_words, y_tolerance=5.0)
     
     # Convert word rows to column-based rows
     column_rows = []
