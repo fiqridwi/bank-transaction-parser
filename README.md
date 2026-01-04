@@ -7,6 +7,7 @@ A Streamlit-based web application that extracts bank transaction data from PDF s
 - 📄 **Multi-page PDF Support**: Extracts transaction tables from all pages
 - 🔍 **Smart Table Detection**: Automatically identifies transaction tables with columns: TANGGAL, KETERANGAN, DETAIL TRANSAKSI, MUTASI, SALDO
 - 🧹 **Data Cleaning**: Normalizes currency values, handles multi-line descriptions, and removes formatting artifacts
+- 🏷️ **Category Management**: Categorize transactions automatically based on customizable keywords (stored in browser localStorage)
 - 📊 **Interactive Preview**: View extracted data in a scrollable table before export
 - 💾 **Excel Export**: Download cleaned data as `.xlsx` files with proper formatting
 
@@ -38,15 +39,22 @@ A Streamlit-based web application that extracts bank transaction data from PDF s
    - The app will automatically open in your default browser
    - If not, navigate to `http://localhost:8501`
 
-3. **Upload a PDF file:**
+3. **Manage Categories (Optional):**
+   - Click "Manage Categories" to set up transaction categories
+   - Add, edit, or delete categories and their associated keywords
+   - Categories are stored in your browser's localStorage and persist across sessions
+   - Transactions are automatically categorized based on keywords in the DETAIL TRANSAKSI field
+
+4. **Upload a PDF file:**
    - Click "Browse files" or drag and drop a PDF file
    - The application will automatically extract transaction data
 
-4. **Preview the data:**
+5. **Preview the data:**
    - Review the extracted transactions in the preview table
    - Check the statistics (total transactions, columns, date range)
+   - Categories are automatically applied to transactions based on your configured keywords
 
-5. **Export to Excel:**
+6. **Export to Excel:**
    - Click the "Download Excel File" button
    - The file will be saved as `bank_transaction_<timestamp>.xlsx`
 
@@ -57,6 +65,8 @@ pdf-to-excel/
 ├── app.py              # Main Streamlit application
 ├── pdf_parser.py       # PDF extraction logic using pdfplumber
 ├── data_cleaner.py     # Data cleaning and normalization utilities
+├── category_store.py   # Category management with localStorage integration
+├── category_mapper.py  # Transaction categorization logic
 ├── requirements.txt    # Python dependencies
 ├── README.md           # This file
 └── docs/               # Sample PDF files
@@ -71,8 +81,9 @@ pdf-to-excel/
    - Removes currency symbols and thousand separators
    - Converts numeric values (MUTASI, SALDO) to float
    - Merges multi-line descriptions in KETERANGAN field
-4. **Preview**: Displays cleaned data in an interactive table
-5. **Export**: Generates Excel file with proper formatting
+4. **Categorization**: Applies categories based on keyword matching in transaction details
+5. **Preview**: Displays cleaned data in an interactive table
+6. **Export**: Generates Excel file with proper formatting
 
 ## Edge Cases Handled
 
@@ -82,6 +93,27 @@ pdf-to-excel/
 - ✅ Indonesian currency formatting (Rp, dots as thousand separators)
 - ✅ Unreadable or corrupted PDF files
 - ✅ PDFs with no transaction tables
+
+## Category Management
+
+Category data is stored in your browser's localStorage, which means:
+- ✅ Categories persist across sessions and browser restarts
+- ✅ No server-side storage required - all data stays in your browser
+- ✅ Each browser maintains its own set of categories
+- ⚠️ Clearing browser data will reset categories to defaults
+- ⚠️ Categories are browser-specific (not shared across different browsers)
+
+### Default Categories
+
+The application comes with pre-configured categories:
+- Grocery (Indomaret, Alfamart, etc.)
+- Makan (Restaurants, cafes, food vendors)
+- Shopping (Shopee, Tokopedia)
+- Gopay (Gopay top-ups and transactions)
+- ATM (ATM withdrawals and transfers)
+- Income (Salary, transfers)
+- Gift (Charitable donations)
+- Kostan (Rent/boarding)
 
 ## Dependencies
 

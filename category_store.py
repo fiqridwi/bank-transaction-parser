@@ -2,13 +2,13 @@
 Category Storage Module for Transaction Categories
 
 This module handles persistence and CRUD operations for transaction category mappings.
-Categories are stored in a JSON file and can be managed through CRUD operations.
+Categories are stored in browser localStorage and can be managed through CRUD operations.
 """
 
 import json
-import os
 from typing import List, Dict, Optional, Any
-from pathlib import Path
+import streamlit as st
+import streamlit.components.v1 as components
 
 
 # Default starter data
@@ -93,79 +93,145 @@ STARTER_CATEGORIES = [
 ]
 
 
-def get_categories_file_path() -> Path:
+LOCALSTORAGE_KEY = "transaction_categories"
+
+
+def init_localstorage_sync():
     """
-    Get the path to the categories JSON file.
+    Initialize localStorage synchronization. 
+    This loads data from localStorage into session state on first run.
+    """
+    # Check if we need to load from localStorage
+    if '_categories_data' in st.session_state:
+        return  # Already initialized
     
-    Returns:
-        Path object pointing to categories.json in project root
+    # Create a component that tries to load from localStorage
+    html_code = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <script>
+            // Try to load from localStorage and pass back to Streamlit
+            function loadFromLocalStorage() {{
+                try {{
+                    const data = localStorage.getItem('{LOCALSTORAGE_KEY}');
+                    if (data) {{
+                        // Parse to validate
+                        const parsed = JSON.parse(data);
+                        // Send back to Streamlit via return value
+                        return data;
+                    }}
+                }} catch (e) {{
+                    console.error('Error loading from localStorage:', e);
+                }}
+                return null;
+            }}
+            
+            // Execute immediately
+            const result = loadFromLocalStorage();
+            
+            // For debugging
+            if (result) {{
+                console.log('Loaded categories from localStorage');
+            }} else {{
+                console.log('No categories in localStorage, will use defaults');
+            }}
+        </script>
+    </head>
+    <body>
+        <div id="result"></div>
+    </body>
+    </html>
     """
-    # Get the directory where this script is located
-    script_dir = Path(__file__).parent
-    return script_dir / "categories.json"
+    
+    # The component returns the localStorage data
+    result = components.html(html_code, height=0)
+    
+    # If we got data back, try to parse and use it
+    if result:
+        try:
+            loaded_categories = json.loads(result)
+            if isinstance(loaded_categories, list) and len(loaded_categories) > 0:
+                # Validate structure
+                valid = all(
+                    isinstance(cat, dict) and 
+                    'category' in cat and 
+                    'keywords' in cat and 
+                    isinstance(cat['keywords'], list)
+                    for cat in loaded_categories
+                )
+                if valid:
+                    st.session_state._categories_data = loaded_categories
+                    return
+        except (json.JSONDecodeError, Exception) as e:
+            print(f"Error parsing localStorage data: {e}")
+    
+    # If we reach here, use starter data
+    st.session_state._categories_data = STARTER_CATEGORIES.copy()
+    # Sync to localStorage
+    sync_to_localstorage(st.session_state._categories_data)
+
+
+def sync_to_localstorage(categories: List[Dict[str, Any]]):
+    """
+    Sync categories data to browser localStorage.
+    
+    Args:
+        categories: List of category dictionaries to save
+    """
+    try:
+        json_data = json.dumps(categories, ensure_ascii=False)
+        # Escape for JavaScript
+        escaped_data = json_data.replace('\\', '\\\\').replace("'", "\\'").replace('\n', '\\n').replace('\r', '\\r').replace('"', '\\"')
+        
+        html_code = f"""
+        <script>
+            try {{
+                const data = '{escaped_data}';
+                // Unescape the data
+                const unescaped = data.replace(/\\\\"/g, '"');
+                localStorage.setItem('{LOCALSTORAGE_KEY}', unescaped);
+                console.log('Categories synced to localStorage');
+            }} catch (e) {{
+                console.error('Error saving to localStorage:', e);
+            }}
+        </script>
+        """
+        
+        components.html(html_code, height=0)
+    except Exception as e:
+        print(f"Error syncing to localStorage: {str(e)}")
 
 
 def load_categories() -> List[Dict[str, Any]]:
     """
-    Load categories from JSON file or create with starter data if file doesn't exist.
+    Load categories from Streamlit session state (backed by localStorage).
     
     Returns:
         List of category dictionaries, each with 'category' and 'keywords' keys
     """
-    categories_file = get_categories_file_path()
+    # Check if categories are already in session state
+    if '_categories_data' not in st.session_state:
+        # Initialize with starter data
+        st.session_state._categories_data = STARTER_CATEGORIES.copy()
+        # Sync to localStorage
+        sync_to_localstorage(st.session_state._categories_data)
     
-    # If file doesn't exist, create it with starter data
-    if not categories_file.exists():
-        save_categories(STARTER_CATEGORIES)
-        return STARTER_CATEGORIES.copy()
-    
-    try:
-        with open(categories_file, 'r', encoding='utf-8') as f:
-            categories = json.load(f)
-        
-        # Validate structure
-        if not isinstance(categories, list):
-            # Invalid format, recreate with starter data
-            save_categories(STARTER_CATEGORIES)
-            return STARTER_CATEGORIES.copy()
-        
-        # Validate each category has required fields
-        valid_categories = []
-        for cat in categories:
-            if isinstance(cat, dict) and 'category' in cat and 'keywords' in cat:
-                if isinstance(cat['keywords'], list):
-                    valid_categories.append(cat)
-        
-        if not valid_categories:
-            # No valid categories, use starter data
-            save_categories(STARTER_CATEGORIES)
-            return STARTER_CATEGORIES.copy()
-        
-        return valid_categories
-    
-    except (json.JSONDecodeError, IOError) as e:
-        # File is corrupted or unreadable, recreate with starter data
-        save_categories(STARTER_CATEGORIES)
-        return STARTER_CATEGORIES.copy()
+    return st.session_state._categories_data.copy()
 
 
 def save_categories(categories: List[Dict[str, Any]]) -> None:
     """
-    Save categories to JSON file.
+    Save categories to session state and sync to localStorage.
     
     Args:
         categories: List of category dictionaries to save
-        
-    Raises:
-        IOError: If file cannot be written
     """
-    categories_file = get_categories_file_path()
+    # Save to session state
+    st.session_state._categories_data = categories.copy()
     
-    try:
-        with open(categories_file, 'w', encoding='utf-8') as f:
-            json.dump(categories, f, indent=2, ensure_ascii=False)
-    except IOError as e:
-        raise IOError(f"Error saving categories to {categories_file}: {str(e)}")
+    # Sync to localStorage
+    sync_to_localstorage(categories)
 
 
 def get_categories() -> List[Dict[str, Any]]:

@@ -13,13 +13,13 @@ import io
 from datetime import datetime
 from pdf_parser import extract_tables_from_pdf, get_expected_columns
 from data_cleaner import clean_transaction_data
-from category_store import load_categories, add_category, update_category, delete_category
+from category_store import load_categories, add_category, update_category, delete_category, init_localstorage_sync
 from category_mapper import apply_categories_to_dataframe
 
 
 # Page configuration
 st.set_page_config(
-    page_title="PDF to Excel Converter",
+    page_title="Bank Transaction Converter",
     page_icon="📊",
     layout="wide"
 )
@@ -44,16 +44,32 @@ def generate_excel_file(df: pd.DataFrame) -> bytes:
     return output.getvalue()
 
 
-def render_category_management():
-    """Render the category management UI in the sidebar."""
-    st.sidebar.title("📝 Category Management")
+def reapply_categories_to_transaction_data():
+    """Re-apply categories to existing transaction data if it exists."""
+    if 'transaction_data' in st.session_state and st.session_state.transaction_data is not None:
+        if not st.session_state.transaction_data.empty and 'DETAIL TRANSAKSI' in st.session_state.transaction_data.columns:
+            apply_categories_to_dataframe(st.session_state.transaction_data, st.session_state.categories)
+            # Reorder columns if needed
+            if 'CATEGORY' in st.session_state.transaction_data.columns:
+                cols = list(st.session_state.transaction_data.columns)
+                if 'DETAIL TRANSAKSI' in cols:
+                    detail_idx = cols.index('DETAIL TRANSAKSI')
+                    cols.remove('CATEGORY')
+                    cols.insert(detail_idx + 1, 'CATEGORY')
+                    st.session_state.transaction_data = st.session_state.transaction_data[cols]
+
+
+@st.dialog("📝 Category Management")
+def render_category_management_dialog():
+    """Render the category management UI in a dialog."""
+    st.title("📝 Category Management")
     
     # Initialize categories in session state
     if 'categories' not in st.session_state:
         st.session_state.categories = load_categories()
     
     # Add New Category Section
-    with st.sidebar.expander("➕ Add New Category", expanded=False):
+    with st.expander("➕ Add New Category", expanded=False):
         new_category_name = st.text_input(
             "Category Name",
             key="new_category_name",
@@ -76,18 +92,7 @@ def render_category_management():
                         success = add_category(new_category_name, keywords_list)
                         if success:
                             st.session_state.categories = load_categories()
-                            # Re-apply categories to existing transaction data if it exists
-                            if 'transaction_data' in st.session_state and st.session_state.transaction_data is not None:
-                                if not st.session_state.transaction_data.empty and 'DETAIL TRANSAKSI' in st.session_state.transaction_data.columns:
-                                    apply_categories_to_dataframe(st.session_state.transaction_data, st.session_state.categories)
-                                    # Reorder columns if needed
-                                    if 'CATEGORY' in st.session_state.transaction_data.columns:
-                                        cols = list(st.session_state.transaction_data.columns)
-                                        if 'DETAIL TRANSAKSI' in cols:
-                                            detail_idx = cols.index('DETAIL TRANSAKSI')
-                                            cols.remove('CATEGORY')
-                                            cols.insert(detail_idx + 1, 'CATEGORY')
-                                            st.session_state.transaction_data = st.session_state.transaction_data[cols]
+                            reapply_categories_to_transaction_data()
                             st.success(f"✅ Category '{new_category_name}' added!")
                             # Clear inputs
                             st.session_state.new_category_name = ""
@@ -102,19 +107,19 @@ def render_category_management():
             else:
                 st.error("❌ Please fill in both category name and keywords")
     
-    st.sidebar.markdown("---")
+    st.markdown("---")
     
     # Existing Categories Section
-    st.sidebar.subheader("📋 Existing Categories")
+    st.subheader("📋 Existing Categories")
     
     if not st.session_state.categories:
-        st.sidebar.info("No categories defined. Add one above to get started.")
+        st.info("No categories defined. Add one above to get started.")
     else:
         for idx, cat in enumerate(st.session_state.categories):
             category_name = cat['category']
             keywords_count = len(cat.get('keywords', []))
             
-            with st.sidebar.container():
+            with st.container():
                 col1, col2 = st.columns([3, 1])
                 with col1:
                     st.markdown(f"**{category_name}** ({keywords_count} keywords)")
@@ -147,18 +152,7 @@ def render_category_management():
                                 if success:
                                     st.session_state.categories = load_categories()
                                     st.session_state[f"editing_{idx}"] = False
-                                    # Re-apply categories to existing transaction data if it exists
-                                    if 'transaction_data' in st.session_state and st.session_state.transaction_data is not None:
-                                        if not st.session_state.transaction_data.empty and 'DETAIL TRANSAKSI' in st.session_state.transaction_data.columns:
-                                            apply_categories_to_dataframe(st.session_state.transaction_data, st.session_state.categories)
-                                            # Reorder columns if needed
-                                            if 'CATEGORY' in st.session_state.transaction_data.columns:
-                                                cols = list(st.session_state.transaction_data.columns)
-                                                if 'DETAIL TRANSAKSI' in cols:
-                                                    detail_idx = cols.index('DETAIL TRANSAKSI')
-                                                    cols.remove('CATEGORY')
-                                                    cols.insert(detail_idx + 1, 'CATEGORY')
-                                                    st.session_state.transaction_data = st.session_state.transaction_data[cols]
+                                    reapply_categories_to_transaction_data()
                                     st.success("✅ Updated!")
                                     st.rerun()
                                 else:
@@ -176,40 +170,36 @@ def render_category_management():
                             if delete_category(category_name):
                                 st.session_state.categories = load_categories()
                                 st.session_state[f"editing_{idx}"] = False
-                                # Re-apply categories to existing transaction data if it exists
-                                if 'transaction_data' in st.session_state and st.session_state.transaction_data is not None:
-                                    if not st.session_state.transaction_data.empty and 'DETAIL TRANSAKSI' in st.session_state.transaction_data.columns:
-                                        apply_categories_to_dataframe(st.session_state.transaction_data, st.session_state.categories)
-                                        # Reorder columns if needed
-                                        if 'CATEGORY' in st.session_state.transaction_data.columns:
-                                            cols = list(st.session_state.transaction_data.columns)
-                                            if 'DETAIL TRANSAKSI' in cols:
-                                                detail_idx = cols.index('DETAIL TRANSAKSI')
-                                                cols.remove('CATEGORY')
-                                                cols.insert(detail_idx + 1, 'CATEGORY')
-                                                st.session_state.transaction_data = st.session_state.transaction_data[cols]
+                                reapply_categories_to_transaction_data()
                                 st.success("✅ Deleted!")
                                 st.rerun()
                             else:
                                 st.error("❌ Category not found")
             
-            st.sidebar.markdown("---")
+            st.markdown("---")
 
 
 def main():
     """Main application function."""
     
-    # Render category management in sidebar
-    render_category_management()
+    # Initialize localStorage sync (only runs once per session)
+    init_localstorage_sync()
     
-    # Header
-    st.title("📊 PDF to Excel Converter")
-    st.markdown("**Convert bank transaction PDF statements to Excel format**")
-    st.markdown("---")
-    
-    # Initialize categories in session state (for main area usage)
+    # Initialize categories in session state
     if 'categories' not in st.session_state:
         st.session_state.categories = load_categories()
+    
+    # Header
+    st.title("📊 Bank Transaction Converter")
+    st.markdown("**Convert bank transaction PDF statements to Excel format**")
+    
+    # Category Management Button
+    col1, col2, col3 = st.columns([2, 1, 2])
+    with col2:
+        if st.button("📝 Manage Categories", type="secondary", use_container_width=True):
+            render_category_management_dialog()
+    
+    st.markdown("---")
     
     # File uploader
     uploaded_file = st.file_uploader(
@@ -349,7 +339,7 @@ def main():
     st.markdown(
         """
         <div style='text-align: center; color: gray;'>
-        <small>PDF to Excel Converter | Built with Streamlit</small>
+        <small>Bank Transaction Converter</small>
         </div>
         """,
         unsafe_allow_html=True
