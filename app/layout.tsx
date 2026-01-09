@@ -4,6 +4,9 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Bank Transaction Converter",
   description: "Convert bank transaction PDF statements to Excel format",
+  icons: {
+    icon: "/favicon.ico",
+  },
 };
 
 export default function RootLayout({
