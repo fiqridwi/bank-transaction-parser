@@ -70,6 +70,8 @@ export async function generateExcelFile(data: TransactionRow[]): Promise<Buffer>
 
   // Format columns
   worksheet.columns.forEach((column, index) => {
+    if (!column) return;
+    
     const columnName = columnOrder[index];
     
     // Set column width
@@ -90,7 +92,7 @@ export async function generateExcelFile(data: TransactionRow[]): Promise<Buffer>
     }
 
     // Format numeric columns
-    if (columnName === 'MUTASI' || columnName === 'SALDO') {
+    if ((columnName === 'MUTASI' || columnName === 'SALDO') && column && column.eachCell) {
       column.eachCell({ includeEmpty: false }, (cell, rowNumber) => {
         if (rowNumber > 1 && cell.value !== null && cell.value !== '') {
           const numValue = typeof cell.value === 'number' 
