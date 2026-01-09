@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import FileUpload from '@/components/FileUpload';
 import Statistics from '@/components/Statistics';
 import TransactionPreview from '@/components/TransactionPreview';
 import CategoryModal from '@/components/CategoryModal';
+import WelcomeDialog from '@/components/WelcomeDialog';
 import { useCategories } from '@/hooks/useCategories';
 import { PreviewData, TransactionRow } from '@/lib/types';
 
@@ -14,7 +15,13 @@ export default function Home() {
   const [fullData, setFullData] = useState<TransactionRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [isWelcomeDialogOpen, setIsWelcomeDialogOpen] = useState(false);
   const { categories } = useCategories();
+
+  useEffect(() => {
+    // Show welcome dialog on page load
+    setIsWelcomeDialogOpen(true);
+  }, []);
 
   const handleFileSelect = async (file: File) => {
     setIsProcessing(true);
@@ -185,6 +192,12 @@ export default function Home() {
       <CategoryModal
         isOpen={isCategoryModalOpen}
         onClose={() => setIsCategoryModalOpen(false)}
+      />
+
+      {/* Welcome Dialog */}
+      <WelcomeDialog
+        isOpen={isWelcomeDialogOpen}
+        onClose={() => setIsWelcomeDialogOpen(false)}
       />
     </main>
   );
