@@ -38,7 +38,9 @@ export async function POST(request: NextRequest) {
     const filename = `bank_transaction_${timestamp}.xlsx`;
 
     // Return as file download
-    return new NextResponse(new Uint8Array(excelBuffer), {
+    // Convert Buffer to Uint8Array for NextResponse compatibility
+    const uint8Array = Uint8Array.from(excelBuffer);
+    return new NextResponse(uint8Array, {
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'Content-Disposition': `attachment; filename="${filename}"`,
