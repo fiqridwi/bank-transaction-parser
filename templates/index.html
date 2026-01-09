@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bank Transaction Converter</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📊 Bank Transaction Converter</h1>
+            <p class="subtitle">Convert bank transaction PDF statements to Excel format</p>
+        </header>
+
+        <div class="main-content">
+            <!-- Category Management Button -->
+            <div class="category-button-container">
+                <button id="manageCategoriesBtn" class="btn btn-secondary">📝 Manage Categories</button>
+            </div>
+
+            <hr>
+
+            <!-- File Upload Section -->
+            <section class="upload-section">
+                <h2>Upload PDF File</h2>
+                <div class="upload-area" id="uploadArea">
+                    <input type="file" id="fileInput" accept=".pdf" style="display: none;">
+                    <div class="upload-placeholder">
+                        <p>📄 Click to browse or drag and drop a PDF file</p>
+                        <p class="upload-hint">Select a PDF file containing bank transaction statements</p>
+                    </div>
+                </div>
+                <div id="uploadStatus" class="status-message"></div>
+            </section>
+
+            <!-- Statistics Section -->
+            <section id="statisticsSection" class="statistics-section" style="display: none;">
+                <h2>Statistics</h2>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-label">Total Transactions</div>
+                        <div class="stat-value" id="statTotalTransactions">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Columns</div>
+                        <div class="stat-value" id="statColumns">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Date Range</div>
+                        <div class="stat-value" id="statDateRange">-</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Preview Section -->
+            <section id="previewSection" class="preview-section" style="display: none;">
+                <h2>📋 Transaction Preview</h2>
+                <div class="table-container">
+                    <table id="previewTable" class="data-table">
+                        <thead id="previewTableHead"></thead>
+                        <tbody id="previewTableBody"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Export Section -->
+            <section id="exportSection" class="export-section" style="display: none;">
+                <h2>💾 Export to Excel</h2>
+                <button id="downloadBtn" class="btn btn-primary">📥 Download Excel File</button>
+            </section>
+        </div>
+
+        <footer>
+            <p>Bank Transaction Converter</p>
+        </footer>
+    </div>
+
+    <!-- Category Management Modal -->
+    <div id="categoryModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📝 Category Management</h2>
+                <button class="modal-close" id="closeModalBtn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <!-- Add New Category Section -->
+                <div class="category-form-section">
+                    <h3>➕ Add New Category</h3>
+                    <div class="form-group">
+                        <label for="newCategoryName">Category Name</label>
+                        <input type="text" id="newCategoryName" placeholder="Enter a unique category name">
+                    </div>
+                    <div class="form-group">
+                        <label for="newKeywords">Keywords (comma-separated)</label>
+                        <textarea id="newKeywords" rows="3" placeholder="Enter keywords separated by commas, e.g., 'indomaret, alfamart'"></textarea>
+                    </div>
+                    <button id="addCategoryBtn" class="btn btn-primary">Add Category</button>
+                </div>
+
+                <hr>
+
+                <!-- Existing Categories Section -->
+                <div class="categories-list-section">
+                    <h3>📋 Existing Categories</h3>
+                    <div id="categoriesList" class="categories-list">
+                        <p class="info-message">Loading categories...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
+
