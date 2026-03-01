@@ -31,6 +31,12 @@ export async function POST(request: NextRequest) {
     // Extract tables from PDF
     const rawRows = await extractTablesFromPdf(pdfBuffer);
 
+    // Debug: log first few raw rows to help diagnose parsing issues
+    console.log('[PDF Parser] Raw rows extracted:', rawRows.length);
+    rawRows.slice(0, 5).forEach((row, i) => {
+      console.log(`[PDF Parser] Row ${i}:`, JSON.stringify(row));
+    });
+
     if (!rawRows || rawRows.length === 0) {
       return NextResponse.json(
         { error: 'No transaction tables found in the PDF. Please verify the file format.' },
@@ -40,6 +46,18 @@ export async function POST(request: NextRequest) {
 
     // Clean the data
     const cleanedData = cleanTransactionData(rawRows);
+
+    // Debug: log first few cleaned rows
+    console.log('[PDF Parser] Cleaned rows:', cleanedData.length);
+    cleanedData.slice(0, 5).forEach((row, i) => {
+      console.log(`[PDF Parser] Cleaned ${i}:`, JSON.stringify({
+        TANGGAL: row.TANGGAL,
+        KETERANGAN: row.KETERANGAN,
+        DETAIL: row["DETAIL TRANSAKSI"]?.substring(0, 50),
+        MUTASI: row.MUTASI,
+        SALDO: row.SALDO,
+      }));
+    });
 
     if (cleanedData.length === 0) {
       return NextResponse.json(

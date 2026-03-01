@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-
+    console.log('data', data);
     // Convert data to TransactionRow format
     const transactionData: TransactionRow[] = data.map((row: any) => ({
       TANGGAL: row.TANGGAL || '',
